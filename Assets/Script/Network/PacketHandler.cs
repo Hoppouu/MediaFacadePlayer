@@ -90,7 +90,8 @@ namespace Network
 
         private void OnSyncRequest(NetworkPacket packet, IPEndPoint sender)
         {
-            VideoManager.Instance.SyncVideoTimeAndWait(packet.time);
+            long latency = NetworkManager.Instance.GetLatency(packet.sendTime);
+            VideoManager.Instance.SyncVideoTimeAndWait(packet.time, NetworkManager.ConvertTickToSeconds(latency));
         }
 
         private void OnRttResponse(NetworkPacket packet, IPEndPoint sender)

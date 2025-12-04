@@ -22,12 +22,11 @@ public class VideoManager : MonoBehaviour
     private SpoutSender _spoutSender3;
 
     private const double _SYNC_TOLERANCE = 0.5;
-    private const double _ADD_SEEK_TIME = 1.0;
+    private const double _ADD_SEEK_TIME = 2.0;
 
-    private bool _isWaitingSyncPlayTime = false;
+    private bool _isUsing = false;
     private bool _isWaitingPlay = false;
 
-    private long _expectedSyncStartTime = 0;
     private long _startTargetTime;
 
     private RenderTexture _rt = null;
@@ -77,11 +76,6 @@ public class VideoManager : MonoBehaviour
     private void Update()
     {
         SyncPlay();
-
-        if (_isWaitingSyncPlayTime)
-        {
-            StartCoroutine(SyncPlayTime());
-        }
     }
 
     public void LetsPlay(long targetTime)
@@ -95,26 +89,37 @@ public class VideoManager : MonoBehaviour
         return _mediaPlayer;
     }
 
-    IEnumerator SyncPlayTime()
+    IEnumerator SyncPlayTime(long _expectedSyncStartTime)
     {
-        while(_isWaitingSyncPlayTime)
+        while (true)
         {
-            if (NetworkManager.GetCurTimeForTick() >= _expectedSyncStartTime)
+            long currentTick = NetworkManager.GetCurTimeForTick();
+            if (currentTick >= _expectedSyncStartTime)
             {
                 _mediaPlayer.Control.Play();
-                _isWaitingSyncPlayTime = false;
+                break;
             }
-            yield return null;
+            double remainingSeconds = NetworkManager.ConvertTickToSeconds(_expectedSyncStartTime - currentTick);
+            if (remainingSeconds > 0.1f)
+            {
+                yield return null;
+            }
+            else
+            {
+                //초집중 상태
+            }
         }
+        _isUsing = false;
+        _syncCoroutine = null;
     }
 
-    public void SyncVideoTimeAndWait(long hostVideoTime)
+    private Coroutine _syncCoroutine;
+    public void SyncVideoTimeAndWait(long hostVideoTime, double latency)
     {
         double currentVideoTime = _mediaPlayer.Control.GetCurrentTime();
-        double _hostVideoTime = NetworkManager.ConvertUsToSeconds(hostVideoTime);
+        double _hostVideoTime = NetworkManager.ConvertUsToSeconds(hostVideoTime) + latency;
         double diff = System.Math.Abs(_hostVideoTime - currentVideoTime);
-        
-        if (!_isWaitingSyncPlayTime)
+        if (!_isUsing)
         {
             if (diff > _SYNC_TOLERANCE)
             {
@@ -122,11 +127,15 @@ public class VideoManager : MonoBehaviour
                 _mediaPlayer.Control.Pause();
                 _mediaPlayer.Control.Seek(seekTime);
 
-                long latency = NetworkManager.ConvertSecondsToTick(NetworkManager.Instance.Latency) * 16;
-                _expectedSyncStartTime = NetworkManager.GetCurTimeForTick() + NetworkManager.ConvertSecondsToTick(_ADD_SEEK_TIME) + latency;
-                _isWaitingSyncPlayTime = true;
+                long _latency = NetworkManager.ConvertSecondsToTick(latency);
+                long _expectedSyncStartTime = NetworkManager.GetCurTimeForTick() + NetworkManager.ConvertSecondsToTick(_ADD_SEEK_TIME) + _latency;
+                _isUsing = true;
 
                 Debug.Log($"[CLIENT] 시점 불일치 (차이 -> {diff:F3}s) || {currentVideoTime:F3}s -> {currentVideoTime + diff}s -> {seekTime:F3}s, {_ADD_SEEK_TIME}s 앞서 Seek 후 대기.");
+                if (_syncCoroutine == null)
+                {
+                    _syncCoroutine = StartCoroutine(SyncPlayTime(_expectedSyncStartTime));
+                }
             }
         }
     }
