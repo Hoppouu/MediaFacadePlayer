@@ -58,7 +58,6 @@ public class NetworkManager : MonoBehaviour
 
     public PacketDispatcher PacketDispatcher {  get; private set; }
     public long Offset { get; private set; } = 0;
-    public double Latency { get; private set; } = 0;
 
     public const float PACKET_INTERVAL_TIME = 0.5f;
     private Dictionary<NetworkRole, NetworkEntry> _clientEntry;
@@ -120,6 +119,10 @@ public class NetworkManager : MonoBehaviour
     }
 
     #region 패킷 핸들러/센더가 사용하는 함수
+    public long GetLatency(long sendTime)
+    {
+        return GetCurTimeForTick() - (sendTime + Offset);
+    }
     private bool isCalced = false;
     public void AddLatency(long latency, long calculatedOffset)
     {
@@ -130,21 +133,15 @@ public class NetworkManager : MonoBehaviour
             _latencyList.Sort((a, b) => a.latency.CompareTo(b.latency));
 
             long sumOffset = 0;
-            long sumLatency = 0;
             int useCount = 15;
 
             for (int i = 0; i < useCount; i++)
             {
                 sumOffset += _latencyList[i].offset;
-                sumLatency += _latencyList[i].latency;
             }
 
             Offset = sumOffset / useCount;
-            Latency = ConvertTickToSeconds(sumLatency) / useCount;
-            string str = "Offset 설정 완료!\n";
-            str += $"Offset = {Offset} -> ({ConvertTickToSeconds(Offset)}s)\n";
-            str += $"Latency = {Latency:F6}s";
-            Debug.Log(str);
+            Debug.Log($"Offset 설정 완료! Offset = {Offset} -> ({ConvertTickToSeconds(Offset)}s)");
             Debug.Log("RTT_REQUEST 완료");
             _latencyList.Clear();
             isCalced = true;

@@ -99,3 +99,7 @@ InitTestScene*.unity*
 /[Aa]ssets/[Ii]nit[Tt]est[Ss]cene*.unity*
 
 .vsconfig
+/Assets/StreamingAssets/FilePath.txt
+/Assets/StreamingAssets/FilePath.txt.meta
+/Assets/StreamingAssets/settings.ini
+/Assets/StreamingAssets/settings.ini.meta
