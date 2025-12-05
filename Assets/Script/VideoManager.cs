@@ -22,7 +22,7 @@ public class VideoManager : MonoBehaviour
     private SpoutSender _spoutSender3;
 
     private const double _SYNC_TOLERANCE = 0.5;
-    private const double _ADD_SEEK_TIME = 2.0;
+    private const double _ADD_SEEK_TIME = 1.0;
 
     private bool _isUsing = false;
     private bool _isWaitingPlay = false;
@@ -63,6 +63,18 @@ public class VideoManager : MonoBehaviour
                 _isSideMode = false;
                 break;
         }
+
+        switch (Settings.MyMode)
+        {
+            case Network.NetworkRole.SIDE:
+            case Network.NetworkRole.BOTTOM:
+            _mediaPlayer.PlatformOptionsWindows._audioMode = Windows.AudioOutput.None;
+                break;
+            case Network.NetworkRole.FRONT:
+            _mediaPlayer.PlatformOptionsWindows._audioMode = Windows.AudioOutput.System;
+                break;
+        }
+
     }
 
     void Start()
@@ -100,13 +112,13 @@ public class VideoManager : MonoBehaviour
                 break;
             }
             double remainingSeconds = NetworkManager.ConvertTickToSeconds(_expectedSyncStartTime - currentTick);
-            if (remainingSeconds > 0.1f)
+            if (remainingSeconds > 0.035f)
             {
                 yield return null;
             }
             else
             {
-                //초집중 상태
+                //마감시간이 다가오자 CPU는 초집중 상태에 들어갔다.
             }
         }
         _isUsing = false;
@@ -117,8 +129,8 @@ public class VideoManager : MonoBehaviour
     public void SyncVideoTimeAndWait(long hostVideoTime, double latency)
     {
         double currentVideoTime = _mediaPlayer.Control.GetCurrentTime();
-        double _hostVideoTime = NetworkManager.ConvertUsToSeconds(hostVideoTime) + latency;
-        double diff = System.Math.Abs(_hostVideoTime - currentVideoTime);
+        double _hostVideoTime = NetworkManager.ConvertUsToSeconds(hostVideoTime);
+        double diff = System.Math.Abs((_hostVideoTime + latency) - currentVideoTime);
         if (!_isUsing)
         {
             if (diff > _SYNC_TOLERANCE)
@@ -128,7 +140,8 @@ public class VideoManager : MonoBehaviour
                 _mediaPlayer.Control.Seek(seekTime);
 
                 long _latency = NetworkManager.ConvertSecondsToTick(latency);
-                long _expectedSyncStartTime = NetworkManager.GetCurTimeForTick() + NetworkManager.ConvertSecondsToTick(_ADD_SEEK_TIME) + _latency;
+                long _biasTick = NetworkManager.ConvertSecondsToTick(-0.15);
+                long _expectedSyncStartTime = NetworkManager.GetCurTimeForTick() + NetworkManager.ConvertSecondsToTick(_ADD_SEEK_TIME) - _latency + _biasTick;
                 _isUsing = true;
 
                 Debug.Log($"[CLIENT] 시점 불일치 (차이 -> {diff:F3}s) || {currentVideoTime:F3}s -> {currentVideoTime + diff}s -> {seekTime:F3}s, {_ADD_SEEK_TIME}s 앞서 Seek 후 대기.");
