@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Text;
-using UnityEngine;
 
 public static class Settings
 {
@@ -20,9 +19,21 @@ public static class Settings
     public const string BOTTOM_IP = "Bottom_IP";
     public const string BOTTOM_PORT = "Bottom_Port";
     public const string DELAY_START_TIME = "Delay_Start_Time";
+    public const string BIAS_TICK = "Bias_Tick";
 
     private const string SETTINGS_FILE_NAME = "settings.ini";
     private const string VIDEO_PATH_FILE_NAME = "FilePath.txt";
+    private static readonly string defaultContent =
+@$"{MODE}={FRONT}
+{FRONT_IP}=127.0.0.1
+{FRONT_PORT}=11000
+{SIDE_IP}=127.0.0.1
+{SIDE_PORT}=0
+{BOTTOM_IP}=127.0.0.1
+{BOTTOM_PORT}=0
+{DELAY_START_TIME}=2
+{BIAS_TICK}=-0.15
+";
     #endregion
 
     #region 파일 I/O로 읽어오는 변수들
@@ -36,7 +47,8 @@ public static class Settings
     public static string SideVideoPath { get; private set; }
     public static string BottomVideoPath { get; private set; }
     public static string MyVideoPath { get; private set; }  //MyMode에 따라서 비디오 경로(_F, _S, _B 중 하나)가 들어갑니다.
-    public static float DelayStartTime { get; private set; }
+    public static double DelayStartTime { get; private set; }
+    public static double BiasTick { get; private set; }
 
     private static Dictionary<string, string> _dict;
     private static string _settingsFilePath;
@@ -44,9 +56,9 @@ public static class Settings
     #endregion
 
 
-    static Settings()
+    static public void Init()
     {
-        string streamingAssetsPath = Application.streamingAssetsPath;
+        string streamingAssetsPath = UnityEngine.Application.streamingAssetsPath;
         _settingsFilePath = Path.Combine(streamingAssetsPath, SETTINGS_FILE_NAME);
         _videoPathPath = Path.Combine(streamingAssetsPath, VIDEO_PATH_FILE_NAME);
 
@@ -56,16 +68,39 @@ public static class Settings
         HostIPE = new IPEndPoint(IPAddress.Parse(_dict[FRONT_IP]), int.Parse(_dict[FRONT_PORT]));
         SideIPE = new IPEndPoint(IPAddress.Parse(_dict[SIDE_IP]), int.Parse(_dict[SIDE_PORT]));
         BottomIPE = new IPEndPoint(IPAddress.Parse(_dict[BOTTOM_IP]), int.Parse(_dict[BOTTOM_PORT]));
-        DelayStartTime = float.Parse(_dict[DELAY_START_TIME]);
+        DelayStartTime = double.Parse(_dict[DELAY_START_TIME]);
+        BiasTick = double.Parse(_dict[BIAS_TICK]);
         SetValueByMyMode(_dict[MODE]);
+        UnityEngine.Debug.Log($"불러온 {BIAS_TICK}: {_dict[BIAS_TICK]}");
 
 #if UNITY_EDITOR
         if (DebugMode.debugModeOn)
         {
             SetValueByMyMode(DebugMode.debugMyMode);
+            UnityEngine.Debug.Log($"디버그 모드 활성화: {DebugMode.debugMyMode}");
         }
 #endif
 
+    }
+
+    public static void SaveAll()
+    {
+        _dict[BIAS_TICK] = VideoManager.Instance.BiasTick.ToString();
+
+        try
+        {
+            StringBuilder sb = new StringBuilder();
+            foreach (var kvp in _dict)
+            {
+                sb.AppendLine($"{kvp.Key}={kvp.Value}");
+            }
+            File.WriteAllText(_settingsFilePath, sb.ToString(), Encoding.UTF8);
+            UnityEngine.Debug.Log($"설정 파일 저장 완료: {_settingsFilePath}");
+        }
+        catch (Exception ex)
+        {
+            UnityEngine.Debug.LogError($"설정 파일 저장 실패: {ex.Message}");
+        }
     }
 
     private static void SetValueByMyMode(string myMode)
@@ -96,12 +131,12 @@ public static class Settings
     {
         if (File.Exists(_settingsFilePath))
         {
-            Debug.Log($"[INFO] 설정 파일 발견: {_settingsFilePath}");
+            UnityEngine.Debug.Log($"설정 파일 발견: {_settingsFilePath}");
             return ReadSettingsFromFile();
         }
         else
         {
-            Debug.Log($"[INFO] 설정 파일 없음. {_settingsFilePath}에 기본 양식으로 파일 생성 중...");
+            UnityEngine.Debug.Log($"설정 파일 없음. {_settingsFilePath}에 기본 양식으로 파일 생성 중...");
             CreateDefaultSettingsFile();
             return ReadSettingsFromFile();
         }
@@ -134,7 +169,7 @@ public static class Settings
         }
         catch (Exception ex)
         {
-            Debug.LogError($"[ERROR] 설정 파일 읽기 실패: {ex.Message}");
+            UnityEngine.Debug.LogError($"설정 파일 읽기 실패: {ex.Message}");
         }
         return settings;
     }
@@ -146,25 +181,14 @@ public static class Settings
         {
             Directory.CreateDirectory(directoryPath);
         }
-
-        string defaultContent =
-@$"{MODE}={FRONT}
-{FRONT_IP}=127.0.0.1
-{FRONT_PORT}=11000
-{SIDE_IP}=127.0.0.1
-{SIDE_PORT}=0
-{BOTTOM_IP}=127.0.0.1
-{BOTTOM_PORT}=0
-{DELAY_START_TIME}=2
-";
         try
         {
             File.WriteAllText(_settingsFilePath, defaultContent, Encoding.UTF8);
-            Debug.Log($"[INFO] {_settingsFilePath} 파일 생성 완료.");
+            UnityEngine.Debug.Log($"{_settingsFilePath} 파일 생성 완료.");
         }
         catch (Exception ex)
         {
-            Debug.LogError($"[ERROR] 설정 파일 생성 실패: {ex.Message}");
+            UnityEngine.Debug.LogError($"설정 파일 생성 실패: {ex.Message}");
         }
     }
 
@@ -182,7 +206,7 @@ public static class Settings
     {
         if (File.Exists(_videoPathPath))
         {
-            Debug.Log($"[INFO] 비디오 경로 파일 발견: {_videoPathPath}");
+            UnityEngine.Debug.Log($"비디오 경로 파일 발견: {_videoPathPath}");
             try
             {
                 string originalPath = File.ReadAllText(_videoPathPath, Encoding.UTF8).Trim();
@@ -193,13 +217,13 @@ public static class Settings
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[ERROR] 비디오 경로 파일 읽기 실패: {ex.Message}");
+                UnityEngine.Debug.LogError($"비디오 경로 파일 읽기 실패: {ex.Message}");
                 return string.Empty;
             }
         }
         else
         {
-            Debug.Log($"[INFO] 비디오 경로 파일 없음. {_videoPathPath}에 파일 생성 중...");
+            UnityEngine.Debug.Log($"비디오 경로 파일 없음. {_videoPathPath}에 파일 생성 중...");
             CreateDefaultVideoPathFile();
             return LoadVideoPath();
         }
@@ -215,11 +239,11 @@ public static class Settings
         try
         {
             File.WriteAllText(_videoPathPath, defaultPathContent, Encoding.UTF8);
-            Debug.Log($"[INFO] {_videoPathPath} 파일 생성 완료. 기본값: {defaultPathContent}");
+            UnityEngine.Debug.Log($"[INFO] {_videoPathPath} 파일 생성 완료. 기본값: {defaultPathContent}");
         }
         catch (Exception ex)
         {
-            Debug.LogError($"[ERROR] 비디오 경로 파일 생성 실패: {ex.Message}");
+            UnityEngine.Debug.LogError($"비디오 경로 파일 생성 실패: {ex.Message}");
         }
     }
 }

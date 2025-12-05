@@ -59,9 +59,10 @@ public class NetworkManager : MonoBehaviour
     public PacketDispatcher PacketDispatcher {  get; private set; }
     public long Offset { get; private set; } = 0;
 
-    public const float PACKET_INTERVAL_TIME = 0.5f;
+    public const float PACKET_INTERVAL_TIME = 1.5f;
     private Dictionary<NetworkRole, NetworkEntry> _clientEntry;
     private bool _isConnected = false;
+    private bool _isCalced = false;
 
     private List<TimeStruct> _latencyList;
 
@@ -70,7 +71,6 @@ public class NetworkManager : MonoBehaviour
         if (Instance == null)
         {
             Instance = this;
-            DontDestroyOnLoad(gameObject);
         }
         else
         {
@@ -80,7 +80,6 @@ public class NetworkManager : MonoBehaviour
         PacketDispatcher = GetComponent<PacketDispatcher>();
         _clientEntry = new Dictionary<NetworkRole, NetworkEntry>();
         _latencyList = new List<TimeStruct>();
-
         _clientEntry.Add(NetworkRole.SIDE, new NetworkEntry());
         _clientEntry.Add(NetworkRole.BOTTOM, new NetworkEntry());
     }
@@ -88,7 +87,6 @@ public class NetworkManager : MonoBehaviour
     private void Start()
     {
         if (Settings.MyMode != NetworkRole.FRONT) StartCoroutine(ConnectToHost());
-
     }
 
     private IEnumerator SendSyncPacket()
@@ -115,7 +113,7 @@ public class NetworkManager : MonoBehaviour
             yield return new WaitForSeconds(PACKET_INTERVAL_TIME);
         }
         PacketDispatcher.ClientSender.SendRttRequest();
-        Debug.Log("RTT_REQUEST 패킷 시작");
+        Debug.Log("Handshake 시작");
     }
 
     #region 패킷 핸들러/센더가 사용하는 함수
@@ -123,10 +121,9 @@ public class NetworkManager : MonoBehaviour
     {
         return GetCurTimeForTick() - (sendTime + Offset);
     }
-    private bool isCalced = false;
     public void AddLatency(long latency, long calculatedOffset)
     {
-        if (isCalced) return;
+        if (_isCalced) return;
         _latencyList.Add(new TimeStruct { latency = latency, offset = calculatedOffset });
         if (_latencyList.Count >= 100)
         {
@@ -141,10 +138,10 @@ public class NetworkManager : MonoBehaviour
             }
 
             Offset = sumOffset / useCount;
-            Debug.Log($"Offset 설정 완료! Offset = {Offset} -> ({ConvertTickToSeconds(Offset)}s)");
-            Debug.Log("RTT_REQUEST 완료");
+            Debug.Log($"Offset 설정 완료 (Offset = {Offset})");
+            Debug.Log("Handshake 완료");
             _latencyList.Clear();
-            isCalced = true;
+            _isCalced = true;
         }
     }
     public bool IsAllConnected()

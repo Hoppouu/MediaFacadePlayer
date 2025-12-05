@@ -17,7 +17,7 @@ public class PacketDispatcher : MonoBehaviour
     private PacketHandler _packetHandler;
     private PacketSender _packetSender;
 
-    public void Awake()
+    public void Start()
     {
         _packetTransmitter = new PacketTransmitter(Settings.MyMode, Settings.MyIPE);
         _packetSender = new PacketSender(_packetTransmitter);

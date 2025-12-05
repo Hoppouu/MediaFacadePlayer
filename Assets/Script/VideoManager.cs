@@ -20,13 +20,13 @@ public class VideoManager : MonoBehaviour
     private SpoutSender _spoutSender2;
     [SerializeField]
     private SpoutSender _spoutSender3;
+    public double BiasTick { get; private set; }
 
-    private const double _SYNC_TOLERANCE = 0.5;
-    private const double _ADD_SEEK_TIME = 1.0;
+    private const double _SYNC_TOLERANCE = 0.3;
+    private const double _ADD_SEEK_TIME = 1.5;
+    private readonly long _CPU_THRESHOLD = NetworkManager.ConvertSecondsToTick(0.035); 
 
     private bool _isUsing = false;
-    private bool _isWaitingPlay = false;
-
     private long _startTargetTime;
 
     private RenderTexture _rt = null;
@@ -39,13 +39,16 @@ public class VideoManager : MonoBehaviour
         if (Instance == null)
         {
             Instance = this;
-            DontDestroyOnLoad(gameObject);
         }
         else
         {
             Destroy(gameObject);
             return;
         }
+    }
+
+    void Start()
+    {
         _camera.enabled = true;
         switch (Settings.MyMode)
         {
@@ -64,55 +67,58 @@ public class VideoManager : MonoBehaviour
                 break;
         }
 
-        switch (Settings.MyMode)
-        {
-            case Network.NetworkRole.SIDE:
-            case Network.NetworkRole.BOTTOM:
-            _mediaPlayer.PlatformOptionsWindows._audioMode = Windows.AudioOutput.None;
-                break;
-            case Network.NetworkRole.FRONT:
-            _mediaPlayer.PlatformOptionsWindows._audioMode = Windows.AudioOutput.System;
-                break;
-        }
-
-    }
-
-    void Start()
-    {
         Debug.Log($"비디오 불러오기 -> {Settings.MyVideoPath}");
         PlayTargetVideo(Settings.MyVideoPath);
+        BiasTick = Settings.BiasTick;
 
         _mediaPlayer.Events.AddListener(OnMediaPlayerEvent);
     }
 
     private void Update()
     {
-        SyncPlay();
+        if(Input.GetKeyDown(KeyCode.Q))
+        {
+            BiasTick -= 0.01;
+            Debug.Log($"BiasTick: {BiasTick}");
+        }
+        else if(Input.GetKeyDown(KeyCode.E))
+        {
+            BiasTick += 0.01;
+            Debug.Log($"BiasTick: {BiasTick}");
+        }
     }
 
     public void LetsPlay(long targetTime)
     {
         _startTargetTime = targetTime;
-        _isWaitingPlay = true;
-        Debug.Log($"[SYNC] 로컬({NetworkManager.ConvertTickToSeconds(_startTargetTime - NetworkManager.GetCurTimeForTick())}s)후 시작 예정.");
+        if(_syncCoroutine == null)
+        {
+            _syncCoroutine = StartCoroutine(SyncPlay());
+        }
+        Debug.Log($"{NetworkManager.ConvertTickToSeconds(_startTargetTime - NetworkManager.GetCurTimeForTick()):F3}s후 시작 예정.");
+        Debug.Log($"현재 시각: {NetworkManager.ConvertTickToSeconds(NetworkManager.GetCurTimeForTick()):F3}");
     }
     public MediaPlayer GetPlayer()
     {
         return _mediaPlayer;
     }
 
-    IEnumerator SyncPlayTime(long _expectedSyncStartTime)
+    private IEnumerator SyncPlayTime(long _expectedSyncStartTime)
     {
+        while (_mediaPlayer.Control.IsSeeking())
+        {
+            yield return null;
+        }
+
         while (true)
         {
             long currentTick = NetworkManager.GetCurTimeForTick();
             if (currentTick >= _expectedSyncStartTime)
             {
-                _mediaPlayer.Control.Play();
                 break;
             }
-            double remainingSeconds = NetworkManager.ConvertTickToSeconds(_expectedSyncStartTime - currentTick);
-            if (remainingSeconds > 0.035f)
+            long remainingSeconds = _expectedSyncStartTime - currentTick;
+            if (remainingSeconds > _CPU_THRESHOLD)
             {
                 yield return null;
             }
@@ -121,6 +127,8 @@ public class VideoManager : MonoBehaviour
                 //마감시간이 다가오자 CPU는 초집중 상태에 들어갔다.
             }
         }
+
+        _mediaPlayer.Control.Play();
         _isUsing = false;
         _syncCoroutine = null;
     }
@@ -140,11 +148,11 @@ public class VideoManager : MonoBehaviour
                 _mediaPlayer.Control.Seek(seekTime);
 
                 long _latency = NetworkManager.ConvertSecondsToTick(latency);
-                long _biasTick = NetworkManager.ConvertSecondsToTick(-0.15);
+                long _biasTick = NetworkManager.ConvertSecondsToTick(BiasTick);
                 long _expectedSyncStartTime = NetworkManager.GetCurTimeForTick() + NetworkManager.ConvertSecondsToTick(_ADD_SEEK_TIME) - _latency + _biasTick;
                 _isUsing = true;
 
-                Debug.Log($"[CLIENT] 시점 불일치 (차이 -> {diff:F3}s) || {currentVideoTime:F3}s -> {currentVideoTime + diff}s -> {seekTime:F3}s, {_ADD_SEEK_TIME}s 앞서 Seek 후 대기.");
+                Debug.Log($"시점 불일치 (차이 -> {diff:F3}s) || {currentVideoTime:F3}s -> {currentVideoTime + diff}s -> {seekTime:F3}s, {_ADD_SEEK_TIME}s 앞서 Seek 후 대기.");
                 if (_syncCoroutine == null)
                 {
                     _syncCoroutine = StartCoroutine(SyncPlayTime(_expectedSyncStartTime));
@@ -167,17 +175,29 @@ public class VideoManager : MonoBehaviour
         }
     }
 
-    private void SyncPlay()
+    private IEnumerator SyncPlay()
     {
-        if (_isWaitingPlay)
+        while(true)
         {
             if (NetworkManager.GetCurTimeForTick() >= _startTargetTime)
             {
-                _mediaPlayer.Play();
-                _isWaitingPlay = false;
-                Debug.Log($"[SYNC] {NetworkManager.ConvertTickToSeconds(NetworkManager.GetCurTimeForTick()):F3}s에 동기화 재생 시작!");
+                break;
+            }
+
+            long diff = _startTargetTime - NetworkManager.GetCurTimeForTick();
+            if(diff >= _CPU_THRESHOLD)
+            {
+                yield return null;
+            }
+            else
+            {
+                //정확한 싱크를 위해 메인쓰레드 잠깐 독점
             }
         }
+
+        _mediaPlayer.Play();
+        _syncCoroutine = null;
+        Debug.Log($"{NetworkManager.ConvertTickToSeconds(NetworkManager.GetCurTimeForTick()):F3}s에 동기화 재생 시작 완료");
     }
 
     private void OnMediaPlayerEvent(MediaPlayer mediaPlayer, MediaPlayerEvent.EventType eventType, ErrorCode code)
