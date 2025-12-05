@@ -64,17 +64,6 @@ public class VideoManager : MonoBehaviour
                 break;
         }
 
-        switch (Settings.MyMode)
-        {
-            case Network.NetworkRole.SIDE:
-            case Network.NetworkRole.BOTTOM:
-            _mediaPlayer.PlatformOptionsWindows._audioMode = Windows.AudioOutput.None;
-                break;
-            case Network.NetworkRole.FRONT:
-            _mediaPlayer.PlatformOptionsWindows._audioMode = Windows.AudioOutput.System;
-                break;
-        }
-
     }
 
     void Start()
