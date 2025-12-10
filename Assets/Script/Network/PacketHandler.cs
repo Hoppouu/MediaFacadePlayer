@@ -59,16 +59,13 @@ namespace Network
         private void OnRttDoneRequest(NetworkPacket packet, IPEndPoint sender)
         {
             _packetSender.Host.SendRttDoneResponse(sender);
-            if (NetworkManager.Instance.IsAllConnected())
+            if (NetworkManager.Instance.IsAllConnected() && !_isRttDone)
             {
+                _isRttDone = true;
                 long _startTime = NetworkManager.GetCurTimeForTick() + NetworkManager.ConvertSecondsToTick(Settings.DelayStartTime);
                 _packetSender.Host.SendPlayRequest(_startTime);
-                if (!_isRttDone)
-                {
-                    _isRttDone = true;
-                    VideoManager.Instance.LetsPlay(_startTime);
-                    NetworkManager.Instance.StartSnycVideo();
-                }
+                VideoManager.Instance.LetsPlay(_startTime);
+                NetworkManager.Instance.StartSnycVideo();
             }
         }
     }

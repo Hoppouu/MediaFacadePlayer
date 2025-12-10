@@ -94,9 +94,9 @@ public class VideoManager : MonoBehaviour
         if(_syncCoroutine == null)
         {
             _syncCoroutine = StartCoroutine(SyncPlay());
+            Debug.Log($"{NetworkManager.ConvertTickToSeconds(_startTargetTime - NetworkManager.GetCurTimeForTick()):F3}s후 시작 예정.");
+            Debug.Log($"현재 시각: {NetworkManager.ConvertTickToSeconds(NetworkManager.GetCurTimeForTick()):F3}");
         }
-        Debug.Log($"{NetworkManager.ConvertTickToSeconds(_startTargetTime - NetworkManager.GetCurTimeForTick()):F3}s후 시작 예정.");
-        Debug.Log($"현재 시각: {NetworkManager.ConvertTickToSeconds(NetworkManager.GetCurTimeForTick()):F3}");
     }
     public MediaPlayer GetPlayer()
     {
@@ -137,8 +137,8 @@ public class VideoManager : MonoBehaviour
     public void SyncVideoTimeAndWait(long hostVideoTime, double latency)
     {
         double currentVideoTime = _mediaPlayer.Control.GetCurrentTime();
-        double _hostVideoTime = NetworkManager.ConvertUsToSeconds(hostVideoTime);
-        double diff = System.Math.Abs((_hostVideoTime + latency) - currentVideoTime);
+        double _hostVideoTime = NetworkManager.ConvertUsToSeconds(hostVideoTime) + latency;
+        double diff = System.Math.Abs(_hostVideoTime - currentVideoTime);
         if (!_isUsing)
         {
             if (diff > _SYNC_TOLERANCE)
@@ -149,7 +149,7 @@ public class VideoManager : MonoBehaviour
 
                 long _latency = NetworkManager.ConvertSecondsToTick(latency);
                 long _biasTick = NetworkManager.ConvertSecondsToTick(BiasTick);
-                long _expectedSyncStartTime = NetworkManager.GetCurTimeForTick() + NetworkManager.ConvertSecondsToTick(_ADD_SEEK_TIME) - _latency + _biasTick;
+                long _expectedSyncStartTime = NetworkManager.GetCurTimeForTick() + NetworkManager.ConvertSecondsToTick(_ADD_SEEK_TIME) + _biasTick;
                 _isUsing = true;
 
                 Debug.Log($"시점 불일치 (차이 -> {diff:F3}s) || {currentVideoTime:F3}s -> {currentVideoTime + diff}s -> {seekTime:F3}s, {_ADD_SEEK_TIME}s 앞서 Seek 후 대기.");

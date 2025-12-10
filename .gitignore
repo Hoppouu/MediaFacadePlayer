@@ -98,6 +98,10 @@ InitTestScene*.unity*
 # Auto-generated scenes by play mode tests
 /[Aa]ssets/[Ii]nit[Tt]est[Ss]cene*.unity*
 
+/Assets/AVProVideo/
+/Assets/StreamingAssets/AVProVideoSamples/
+/Assets/StreamingAssets/AVProVideoSamples.meta
+
 .vsconfig
 /Assets/StreamingAssets/FilePath.txt
 /Assets/StreamingAssets/FilePath.txt.meta

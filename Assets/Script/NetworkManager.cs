@@ -112,7 +112,7 @@ public class NetworkManager : MonoBehaviour
     private IEnumerator StartHandshake()
     {
         Debug.Log("Handshake 시작");
-        float maxDuration = 2f;
+        float maxDuration = 5f;
         float curTime = 0f;
         while(_latencyList.Count <= _RTT_PACKET_NUM && curTime <= maxDuration)
         {
@@ -127,14 +127,12 @@ public class NetworkManager : MonoBehaviour
             float _ratioNum = _latencyList.Count * ratio;
             int _useCount = (int)math.ceil(_ratioNum);
             CalcOffset(_useCount);
+            StartCoroutine(UntilRttDone());
         }
         else
         {
             Debug.LogError($"Handshake 실패: 수신된 패킷 {_latencyList.Count}개");
         }
-
-        _isCalcedOffset = true;
-        StartCoroutine(UntilRttDone());
     }
 
     /// <param name="useCount">평균을 낼 패킷의 수</param>
