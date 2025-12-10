@@ -22,6 +22,8 @@ namespace Network
         JOIN_RESPONSE = 2,
         RTT_REQUEST = 3,
         RTT_RESPONSE = 4,
+        RTT_DONE_REQUEST = 5,
+        RTT_DONE_RESPONSE = 6,
         PLAY_REQUEST = 11,
         SYNC_REQUEST = 12,
         SYNC_RESPONSE = 13
@@ -180,7 +182,7 @@ namespace Network
                 }
                 catch (SocketException ex) when (ex.SocketErrorCode == SocketError.ConnectionReset)
                 {
-                    UnityEngine.Debug.LogWarning($"UDP Receive: ICMP Port Unreachable 응답 수신. 다음 수신 시도. (호스트 접속 대기 중)");
+                    UnityEngine.Debug.LogWarning($"UDP Receive: ICMP Port Unreachable 응답 수신. 다음 수신 시도.");
                 }
                 catch (Exception ex)
                 {

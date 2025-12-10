@@ -37,10 +37,12 @@ namespace Network
 
     public class HostPacketHandler:PacketHandlerBase
     {
+        private bool _isRttDone = false;
         public HostPacketHandler(PacketSender packetSender) : base(packetSender)
         {
             RegisterHandler(PacketType.JOIN_REQUEST, OnJoinRequest);
             RegisterHandler(PacketType.RTT_REQUEST, OnRttRequest);
+            RegisterHandler(PacketType.RTT_DONE_REQUEST, OnRttDoneRequest);
         }
 
         private void OnJoinRequest(NetworkPacket packet, IPEndPoint sender)
@@ -50,16 +52,20 @@ namespace Network
         }
         private void OnRttRequest(NetworkPacket packet, IPEndPoint sender)
         {
-            if (!NetworkManager.Instance.SetConnectionState(packet.senderType, 1))
+            _packetSender.Host.SendRttResponse(packet.sendTime, sender);    // 클라이언트가 보낸 시각 다시 전송
+            NetworkManager.Instance.CountClinetPacket(packet.senderType);
+        }
+
+        private void OnRttDoneRequest(NetworkPacket packet, IPEndPoint sender)
+        {
+            _packetSender.Host.SendRttDoneResponse(sender);
+            if (NetworkManager.Instance.IsAllConnected())
             {
-                _packetSender.Host.SendRttResponse(packet.sendTime, sender);    // 클라이언트가 보낸 시각 다시 전송
-            }
-            else
-            {
-                if(NetworkManager.Instance.IsAllConnected())
+                long _startTime = NetworkManager.GetCurTimeForTick() + NetworkManager.ConvertSecondsToTick(Settings.DelayStartTime);
+                _packetSender.Host.SendPlayRequest(_startTime);
+                if (!_isRttDone)
                 {
-                    long _startTime = NetworkManager.GetCurTimeForTick() + NetworkManager.ConvertSecondsToTick(Settings.DelayStartTime);
-                    _packetSender.Host.SendPlayRequest(_startTime);
+                    _isRttDone = true;
                     VideoManager.Instance.LetsPlay(_startTime);
                     NetworkManager.Instance.StartSnycVideo();
                 }
@@ -69,12 +75,14 @@ namespace Network
 
     public class ClientPacketHandler : PacketHandlerBase
     {
+        public bool IsRttDone { get; private set; } = false;
         public ClientPacketHandler(PacketSender packetSender) : base(packetSender)
         {
             RegisterHandler(PacketType.JOIN_RESPONSE, OnJoinResponse);
             RegisterHandler(PacketType.PLAY_REQUEST, OnPlayRequest);
             RegisterHandler(PacketType.SYNC_REQUEST, OnSyncRequest);
             RegisterHandler(PacketType.RTT_RESPONSE, OnRttResponse);
+            RegisterHandler(PacketType.RTT_DONE_RESPONSE, OnRttDoneResponse);
         }
 
         private void OnJoinResponse(NetworkPacket packet, IPEndPoint sender)
@@ -100,7 +108,11 @@ namespace Network
             long latency = (curTime - packet.time) / 2;   //(패킷 받은 시각 - 패킷 보낸 시각) / 2
             long expectedHostTime = packet.sendTime + latency;  //호스트의 sendTime를 받았을때는 latency만큼 시간이 더 지났을 것이다.
             NetworkManager.Instance.AddLatency(latency, curTime - expectedHostTime);
-            _packetSender.Client.SendRttRequest();
+        }
+
+        private void OnRttDoneResponse(NetworkPacket packet, IPEndPoint sender)
+        {
+            IsRttDone = true;
         }
     }
 

@@ -19,7 +19,7 @@ namespace Network
 
         public void SendJoinResponse(IPEndPoint target)
         {
-            NetworkPacket packet = new NetworkPacket(Settings.MyMode,PacketType.JOIN_RESPONSE);
+            NetworkPacket packet = new NetworkPacket(Settings.MyMode, PacketType.JOIN_RESPONSE);
             _packetTransmitter.SendToClinet(packet, target);
         }
 
@@ -41,6 +41,12 @@ namespace Network
             _packetTransmitter.SendToClinet(packet, target);
         }
 
+        public void SendRttDoneResponse(IPEndPoint target)
+        {
+            NetworkPacket packet = new NetworkPacket(Settings.MyMode, PacketType.RTT_DONE_RESPONSE);
+            _packetTransmitter.SendToClinet(packet, target);
+        }
+
     }
 
     public class ClientPacketSender : PacketSenderBase
@@ -55,6 +61,11 @@ namespace Network
         public void SendRttRequest()
         {
             NetworkPacket packet = new NetworkPacket(Settings.MyMode, PacketType.RTT_REQUEST);
+            _packetTransmitter.SendToHost(packet);
+        }
+        public void SendRttDoneRequest()
+        {
+            NetworkPacket packet = new NetworkPacket(Settings.MyMode, PacketType.RTT_DONE_REQUEST);
             _packetTransmitter.SendToHost(packet);
         }
     }

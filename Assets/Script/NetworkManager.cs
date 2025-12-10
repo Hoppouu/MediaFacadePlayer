@@ -2,6 +2,7 @@ using Network;
 using System.Collections;
 using System.Collections.Generic;
 using System.Net;
+using Unity.Mathematics;
 using UnityEngine;
 
 namespace Network
@@ -59,13 +60,15 @@ public class NetworkManager : MonoBehaviour
     public PacketDispatcher PacketDispatcher {  get; private set; }
     public long Offset { get; private set; } = 0;
 
-    public const float PACKET_INTERVAL_TIME = 1.5f;
     private Dictionary<NetworkRole, NetworkEntry> _clientEntry;
-    private bool _isConnected = false;
-    private bool _isCalced = false;
-
     private List<TimeStruct> _latencyList;
+    private bool _isConnected = false;
+    private bool _isCalcedOffset = false;
 
+    private const float _PACKET_INTERVAL_TIME = 1.5f;
+    private const float _RTT_INTERVAL_TIME = 0.01f;
+    private const int _RTT_PACKET_NUM = 100;
+    private const int _RTT_USE_PACKET_PERCENT = 10;
     void Awake()
     {
         if (Instance == null)
@@ -88,32 +91,68 @@ public class NetworkManager : MonoBehaviour
     {
         if (Settings.MyMode != NetworkRole.FRONT) StartCoroutine(ConnectToHost());
     }
-
-    private IEnumerator SendSyncPacket()
+    private IEnumerator ConnectToHost()
     {
-        while (true)
+        while (!_isConnected)
         {
-            if (IsAllConnected() && VideoManager.Instance.GetPlayer().Control.IsPlaying())
-            {
-                if (PacketDispatcher.IsHost())
-                {
-                    long currentTIme = ConvertSecondsToUs(VideoManager.Instance.GetPlayer().Control.GetCurrentTime());
-                    PacketDispatcher.HostSender.SendSyncRequest(currentTIme);
-                }
-            }
-            yield return new WaitForSeconds(PACKET_INTERVAL_TIME);
+            PacketDispatcher.ClientSender.SendJoinRequest();
+            yield return new WaitForSeconds(_PACKET_INTERVAL_TIME);
+        }
+        StartCoroutine(StartHandshake());
+    }
+    private IEnumerator UntilRttDone()
+    {
+        while (!PacketDispatcher.ClientHandler.IsRttDone)
+        {
+            PacketDispatcher.ClientSender.SendRttDoneRequest();
+            yield return new WaitForSeconds(_RTT_INTERVAL_TIME);
         }
     }
 
-    private IEnumerator ConnectToHost()
+    private IEnumerator StartHandshake()
     {
-        while(!_isConnected)
-        {
-            PacketDispatcher.ClientSender.SendJoinRequest();
-            yield return new WaitForSeconds(PACKET_INTERVAL_TIME);
-        }
-        PacketDispatcher.ClientSender.SendRttRequest();
         Debug.Log("Handshake 시작");
+        float maxDuration = 2f;
+        float curTime = 0f;
+        while(_latencyList.Count <= _RTT_PACKET_NUM && curTime <= maxDuration)
+        {
+            PacketDispatcher.ClientSender.SendRttRequest();
+            yield return new WaitForSeconds(_RTT_INTERVAL_TIME);
+            curTime += _RTT_INTERVAL_TIME;
+        }
+
+        if(_latencyList.Count >= _RTT_USE_PACKET_PERCENT)
+        {
+            float ratio = _RTT_USE_PACKET_PERCENT / 100f;
+            float _ratioNum = _latencyList.Count * ratio;
+            int _useCount = (int)math.ceil(_ratioNum);
+            CalcOffset(_useCount);
+        }
+        else
+        {
+            Debug.LogError($"Handshake 실패: 수신된 패킷 {_latencyList.Count}개");
+        }
+
+        _isCalcedOffset = true;
+        StartCoroutine(UntilRttDone());
+    }
+
+    /// <param name="useCount">평균을 낼 패킷의 수</param>
+    private void CalcOffset(int useCount)
+    {
+        _latencyList.Sort((a, b) => a.latency.CompareTo(b.latency));
+
+        long sumOffset = 0;
+
+        for (int i = 0; i < useCount; i++)
+        {
+            sumOffset += _latencyList[i].offset;
+        }
+
+        Offset = sumOffset / useCount;
+        Debug.Log($"Offset 설정 완료 (Offset = {Offset}, Received RTT Packets = {_latencyList.Count})");
+        Debug.Log("Handshake 완료");
+        _isCalcedOffset = true;
     }
 
     #region 패킷 핸들러/센더가 사용하는 함수
@@ -123,25 +162,8 @@ public class NetworkManager : MonoBehaviour
     }
     public void AddLatency(long latency, long calculatedOffset)
     {
-        if (_isCalced) return;
+        if (_isCalcedOffset) return;
         _latencyList.Add(new TimeStruct { latency = latency, offset = calculatedOffset });
-        if (_latencyList.Count >= 100)
-        {
-            _latencyList.Sort((a, b) => a.latency.CompareTo(b.latency));
-
-            long sumOffset = 0;
-            int useCount = 10;
-
-            for (int i = 0; i < useCount; i++)
-            {
-                sumOffset += _latencyList[i].offset;
-            }
-
-            Offset = sumOffset / useCount;
-            Debug.Log($"Offset 설정 완료 (Offset = {Offset})");
-            Debug.Log("Handshake 완료");
-            _isCalced = true;
-        }
     }
     public bool IsAllConnected()
     {
@@ -173,22 +195,19 @@ public class NetworkManager : MonoBehaviour
         }
     }
 
-    public bool SetConnectionState(NetworkRole role, int addNum)
+    public void CountClinetPacket(NetworkRole role)
     {
         if (_clientEntry.ContainsKey(role))
         {
-            _clientEntry[role].rttPacketCount += addNum;
-            if (_clientEntry[role].rttPacketCount >= 140)
+            _clientEntry[role].rttPacketCount += 1;
+            if (_clientEntry[role].rttPacketCount >= _RTT_PACKET_NUM)
             {
                 _clientEntry[role].isConnected = true;
-                return true;
             }
-            else return false;
         }
         else
         {
             Debug.LogError($"AddClient: Invalid networkrole => {role}");
-            return false;
         }
     }
 
@@ -200,6 +219,21 @@ public class NetworkManager : MonoBehaviour
     public void StartSnycVideo()
     {
         StartCoroutine(SendSyncPacket());
+    }
+    private IEnumerator SendSyncPacket()
+    {
+        while (true)
+        {
+            if (IsAllConnected() && VideoManager.Instance.GetPlayer().Control.IsPlaying())
+            {
+                if (PacketDispatcher.IsHost())
+                {
+                    long currentTIme = ConvertSecondsToUs(VideoManager.Instance.GetPlayer().Control.GetCurrentTime());
+                    PacketDispatcher.HostSender.SendSyncRequest(currentTIme);
+                }
+            }
+            yield return new WaitForSeconds(_PACKET_INTERVAL_TIME);
+        }
     }
     #endregion
 
