@@ -80,7 +80,7 @@ namespace Network
         private void OnJoinResponse(NetworkPacket packet, IPEndPoint sender)
         {
             NetworkManager.Instance.SetConnectionState(true);
-            UnityEngine.Debug.Log($"this client is connected!");
+            UnityEngine.Debug.Log($"this client is connected");
         }
 
         private void OnPlayRequest(NetworkPacket packet, IPEndPoint sender)
@@ -98,8 +98,8 @@ namespace Network
         {
             long curTime = NetworkManager.GetCurTimeForTick();
             long latency = (curTime - packet.time) / 2;   //(패킷 받은 시각 - 패킷 보낸 시각) / 2
-            long hostTime = packet.sendTime + latency;
-            NetworkManager.Instance.AddLatency(latency, curTime - hostTime);
+            long expectedHostTime = packet.sendTime + latency;  //호스트의 sendTime를 받았을때는 latency만큼 시간이 더 지났을 것이다.
+            NetworkManager.Instance.AddLatency(latency, curTime - expectedHostTime);
             _packetSender.Client.SendRttRequest();
         }
     }

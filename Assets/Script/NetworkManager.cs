@@ -130,7 +130,7 @@ public class NetworkManager : MonoBehaviour
             _latencyList.Sort((a, b) => a.latency.CompareTo(b.latency));
 
             long sumOffset = 0;
-            int useCount = 15;
+            int useCount = 10;
 
             for (int i = 0; i < useCount; i++)
             {
@@ -140,7 +140,6 @@ public class NetworkManager : MonoBehaviour
             Offset = sumOffset / useCount;
             Debug.Log($"Offset 설정 완료 (Offset = {Offset})");
             Debug.Log("Handshake 완료");
-            _latencyList.Clear();
             _isCalced = true;
         }
     }

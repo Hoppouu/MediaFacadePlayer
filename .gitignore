@@ -103,3 +103,5 @@ InitTestScene*.unity*
 /Assets/StreamingAssets/FilePath.txt.meta
 /Assets/StreamingAssets/settings.ini
 /Assets/StreamingAssets/settings.ini.meta
+*.mp4
+*.mp4.meta

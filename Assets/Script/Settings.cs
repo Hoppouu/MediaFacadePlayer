@@ -54,11 +54,12 @@ public static class Settings
     private static string _settingsFilePath;
     private static string _videoPathPath;
     #endregion
+    private static string streamingAssetsPath;
 
 
     static public void Init()
     {
-        string streamingAssetsPath = UnityEngine.Application.streamingAssetsPath;
+        streamingAssetsPath = UnityEngine.Application.streamingAssetsPath;
         _settingsFilePath = Path.Combine(streamingAssetsPath, SETTINGS_FILE_NAME);
         _videoPathPath = Path.Combine(streamingAssetsPath, VIDEO_PATH_FILE_NAME);
 
@@ -196,6 +197,7 @@ public static class Settings
     private static string AddVideoName(string originalPath, string addString)
     {
         string extension = Path.GetExtension(originalPath);
+        if (string.IsNullOrEmpty(extension)) extension = ".mp4";
         string pathWithoutExtension = Path.ChangeExtension(originalPath, null);
         string modifiedPath = pathWithoutExtension + addString;
         string finalPath = modifiedPath + extension;
@@ -209,11 +211,12 @@ public static class Settings
             UnityEngine.Debug.Log($"비디오 경로 파일 발견: {_videoPathPath}");
             try
             {
-                string originalPath = File.ReadAllText(_videoPathPath, Encoding.UTF8).Trim();
-                FrontVideoPath = AddVideoName(originalPath, "_F");
-                SideVideoPath = AddVideoName(originalPath, "_S");
-                BottomVideoPath = AddVideoName(originalPath, "_B");
-                return originalPath;
+                string _videoPath = File.ReadAllText(_videoPathPath, Encoding.UTF8).Trim();
+                string _finalVideoPath = Path.Combine(streamingAssetsPath, _videoPath);
+                FrontVideoPath = AddVideoName(_finalVideoPath, "_F");
+                SideVideoPath = AddVideoName(_finalVideoPath, "_S");
+                BottomVideoPath = AddVideoName(_finalVideoPath, "_B");
+                return _finalVideoPath;
             }
             catch (Exception ex)
             {
@@ -235,7 +238,7 @@ public static class Settings
         {
             Directory.CreateDirectory(directoryPath);
         }
-        string defaultPathContent = "C:\\YourVideoFolderPath\\";
+        string defaultPathContent = "YourVideoFileName";
         try
         {
             File.WriteAllText(_videoPathPath, defaultPathContent, Encoding.UTF8);
