@@ -99,6 +99,7 @@ InitTestScene*.unity*
 /[Aa]ssets/[Ii]nit[Tt]est[Ss]cene*.unity*
 
 /Assets/AVProVideo/
+/Assets/AVProVideo.meta
 /Assets/StreamingAssets/AVProVideoSamples/
 /Assets/StreamingAssets/AVProVideoSamples.meta
 

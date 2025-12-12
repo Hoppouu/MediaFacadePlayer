@@ -103,7 +103,7 @@ namespace Network
 
         ~PacketTransmitter()
         {
-            _udpClient.Close();
+            Dispose();
         }
         public void Dispose()
         {

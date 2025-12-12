@@ -1,10 +1,10 @@
 ﻿using Klak.Spout;
 using NUnit.Framework.Constraints;
-using RenderHeads.Media.AVProVideo;
 using System.Collections;
 using System.Threading.Tasks;
 using Unity.VisualScripting;
 using UnityEngine;
+using RenderHeads.Media.AVProVideo;
 
 public class VideoManager : MonoBehaviour
 {
@@ -70,7 +70,6 @@ public class VideoManager : MonoBehaviour
         Debug.Log($"비디오 불러오기 -> {Settings.MyVideoPath}");
         PlayTargetVideo(Settings.MyVideoPath);
         BiasTick = Settings.BiasTick;
-
         _mediaPlayer.Events.AddListener(OnMediaPlayerEvent);
     }
 
@@ -102,9 +101,9 @@ public class VideoManager : MonoBehaviour
     {
         return _mediaPlayer;
     }
-
     private IEnumerator SyncPlayTime(long _expectedSyncStartTime)
     {
+
         while (_mediaPlayer.Control.IsSeeking())
         {
             yield return null;
@@ -127,7 +126,6 @@ public class VideoManager : MonoBehaviour
                 //마감시간이 다가오자 CPU는 초집중 상태에 들어갔다.
             }
         }
-
         _mediaPlayer.Control.Play();
         _isUsing = false;
         _syncCoroutine = null;
@@ -162,7 +160,7 @@ public class VideoManager : MonoBehaviour
     }
 
     private void PlayTargetVideo(string videoPath)
-    {
+    {        
         bool success = _mediaPlayer.OpenMedia(videoPath, autoPlay: false);
 
         if (success)
@@ -194,12 +192,10 @@ public class VideoManager : MonoBehaviour
                 //정확한 싱크를 위해 메인쓰레드 잠깐 독점
             }
         }
-
         _mediaPlayer.Play();
         _syncCoroutine = null;
         Debug.Log($"{NetworkManager.ConvertTickToSeconds(NetworkManager.GetCurTimeForTick()):F3}s에 동기화 재생 시작 완료");
     }
-
     private void OnMediaPlayerEvent(MediaPlayer mediaPlayer, MediaPlayerEvent.EventType eventType, ErrorCode code)
     {
         if (eventType == MediaPlayerEvent.EventType.FirstFrameReady)
